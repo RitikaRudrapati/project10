@@ -3,6 +3,10 @@
 #this list will store all the toxers my design will find 
 tokens = []
 
+#still have to check for comments 
+#still have to edit keywords 
+#still have to 
+
 #these lists contain jack allowed keywords, operators, or symbols 
 keywords = ['int', 'float', 'if', 'else', 'while', 'for', 'return']
 operators = ['+', '-', '*', '/', '=', '==', '!=', '<', '>', '<=', '>=']
@@ -56,6 +60,90 @@ def classify(word, tokens):
         tokens.append(("identifier", word))
 
 
+#------------------parser--------------#
+
+def parser(tokens):
+    #this will be the list of parsed tokens 
+    parsedTokens = []
+
+def advance(tokens):
+    if tokens:
+        return tokens.pop(0)
+    else:
+        return None   
+    
+def tokenType(token):
+    if token:
+        return token[0]
+    else:
+        return None
+
+def findKeyword(token):
+    if token and token[0] == "keyword":
+        return token[1]
+    else:
+        return None
+
+def printClassTag(indentifer):
+    print("<class>")
+    print("<keyword> class </keyword>")
+    print("<identifier>" + indentifer + "</identifier>")
+
+def printSymbolTag(symbol):
+    print("<symbol>" + symbol + "</symbol>")
+
+def printClassVarDecTag():
+    print("<classVarDec>")
+    print("</classVarDec>")
+
+def compileClass():
+    if tokenType(advance(tokens)) == "keyword" and findKeyword(tokens[0]) == "class":
+
+        if tokenType(advance(tokens)) == "identifier":
+            printClassTag(tokens[1][1])
+
+            if tokenType(advance(tokens)) == "symbol" and tokens[0][1] == "{":
+                printSymbolTag(tokens[0][1])
+
+                if tokenType(advance(tokens)) == "symbol" and tokens[0][1] == "}":
+                    printSymbolTag(tokens[0][1])
+                #check for class var dec and subroutine dec here
+                if advance(tokens) is not None:
+                    compileClassVarDec()
+                    
+
+            else:
+                print("Syntax error: expected '{' symbol")
+    else:
+        print("Syntax error: expected 'class' keyword")
+
+def compileClassVarDec():
+    if tokenType(advance(tokens)) == "keyword" and findKeyword(tokens[0]) in ["static", "field"]:
+        if tokenType(advance(tokens)) == "int" or tokenType(advance(tokens)) == "char" or tokenType(advance(tokens)) == "boolean" or tokenType(advance(tokens)) == "identifier":
+            if tokenType(advance(tokens)) == "symbol" and tokens[0][1] == ";":
+                printClassVarDecTag()
+            elif tokenType(advance(tokens)) == "symbol" and tokens[0][1] == ",":
+                #do i call class var dec again here? 
+                printClassVarDecTag()
+            
+    return
+
+def compileSubroutineDec():
+    return
+
+def compileParameterList():
+    return
+
+def compileSubroutineBody():
+    return
+
+def compileVarDec():
+    return
+
+def compileStatements():
+    return
+
+#------------------main function------------------#
 
 
 
