@@ -5,13 +5,22 @@ tokens = []
 
 #still have to check for comments 
 #still have to edit keywords 
-#still have to 
+#still have to maek sure my  lexer can handle string constants 
 
 #these lists contain jack allowed keywords, operators, or symbols 
-keywords = ['int', 'float', 'if', 'else', 'while', 'for', 'return']
+keywords = [
+    'class', 'constructor', 'function', 'method', 
+    'field', 'static', 'var', 'int', 'char', 
+    'boolean', 'void', 'true', 'false', 'null', 
+    'this', 'let', 'do', 'if', 'else', 
+    'while', 'return'
+]
 operators = ['+', '-', '*', '/', '=', '==', '!=', '<', '>', '<=', '>=']
-symbols = ['(', ')', '{', '}', ';', ',']
-
+symbols = [
+    '{', '}', '(', ')', '[', ']', 
+    '.', ',', ';', '+', '-', '*', 
+    '/', '&', '|', '<', '>', '=', '~'
+]
 def lexer(file):
     #read the file as one big string
     with open(file, 'r') as f:
@@ -72,6 +81,12 @@ def advance(tokens):
     else:
         return None   
     
+def peek(tokens):
+    if tokens:
+        return tokens[0]
+    else:
+        return None
+
 def tokenType(token):
     if token:
         return token[0]
@@ -86,8 +101,8 @@ def findKeyword(token):
 
 def printClassTag(indentifer):
     print("<class>")
-    print("<keyword> class </keyword>")
-    print("<identifier>" + indentifer + "</identifier>")
+    printKeyword("class")
+    printIdentifier(indentifer)
 
 def printSymbolTag(symbol):
     print("<symbol>" + symbol + "</symbol>")
@@ -96,49 +111,273 @@ def printClassVarDecTag():
     print("<classVarDec>")
     print("</classVarDec>")
 
+def printKeyword(keyword):
+    print("<keyword>" + keyword + "</keyword>")
+
+def printIdentifier(identifier):
+    print("<identifier>" + identifier + "</identifier>")
+
 def compileClass():
-    if tokenType(advance(tokens)) == "keyword" and findKeyword(tokens[0]) == "class":
-
-        if tokenType(advance(tokens)) == "identifier":
-            printClassTag(tokens[1][1])
-
-            if tokenType(advance(tokens)) == "symbol" and tokens[0][1] == "{":
-                printSymbolTag(tokens[0][1])
-
-                if tokenType(advance(tokens)) == "symbol" and tokens[0][1] == "}":
-                    printSymbolTag(tokens[0][1])
-                #check for class var dec and subroutine dec here
-                if advance(tokens) is not None:
-                    compileClassVarDec()
-                    
-
-            else:
-                print("Syntax error: expected '{' symbol")
+    # advance and check for 'class' keyword
+    token = advance(tokens)
+    if token and token[0] == "keyword" and token[1] == "class":
+        # advance and check for class name (identifier)
+        token = advance(tokens)
+        if token and token[0] == "identifier":
+            printClassTag(token[1])
+        else:
+            print("Syntax error: expected class name")
+            return
     else:
         print("Syntax error: expected 'class' keyword")
+        return    
+
+    # advance and check for '{'
+    token = advance(tokens)
+    if token and token[0] == "symbol" and token[1] == "{":
+        printSymbolTag("{")
+    else:
+        print("Syntax error: expected '{'")
+        return
+
+    # use peek to keep compiling classVarDecs as long as it is static or feild
+    while peek(tokens) and peek(tokens)[1] in ["static", "field"]:
+        compileClassVarDec()
+    
+    # use peek to keep compiling subroutines as long as next token is 'constructor', 'function', or 'method'
+    while peek(tokens) and peek(tokens)[1] in ["constructor", "function", "method"]:
+        compileSubroutineDec(peek(tokens)[1])
+        
+    # expect closing '}'
+    token = advance(tokens)
+    if token and token[0] == "symbol" and token[1] == "}":
+        printSymbolTag("}")
+    else:
+        print("Syntax error: expected '}'")
+        return
+
+    print("</class>")
 
 def compileClassVarDec():
-    if tokenType(advance(tokens)) == "keyword" and findKeyword(tokens[0]) in ["static", "field"]:
-        if tokenType(advance(tokens)) == "int" or tokenType(advance(tokens)) == "char" or tokenType(advance(tokens)) == "boolean" or tokenType(advance(tokens)) == "identifier":
-            if tokenType(advance(tokens)) == "symbol" and tokens[0][1] == ";":
-                printClassVarDecTag()
-            elif tokenType(advance(tokens)) == "symbol" and tokens[0][1] == ",":
-                #do i call class var dec again here? 
-                printClassVarDecTag()
-            
-    return
+    print("<classVarDec>")
 
-def compileSubroutineDec():
-    return
+    # expect 'static' or 'field'
+    token = advance(tokens)
+    if token and token[0] == "keyword" and token[1] in ["static", "field"]:
+        printKeyword(token[1])
+    else:
+        print("Syntax error: expected 'static' or 'field'")
+        return
+
+    # expect a type
+    token = advance(tokens)
+    if token and token[0] == "keyword" and token[1] in ["int", "char", "boolean"]:
+        printKeyword(token[1])
+    elif token and token[0] == "identifier":
+        printIdentifier(token[1])
+    else:
+        print("Syntax error: expected an int, char, boolean, or class type")
+        return
+
+    # expect first varName
+    token = advance(tokens)
+    if token and token[0] == "identifier":
+        print("<identifier> " + token[1] + " </identifier>")
+    else:
+        print("Syntax error: expected varName")
+        return
+
+    # use peek to check for ',' or ';'
+    while peek(tokens) and peek(tokens)[1] == ",":
+        advance(tokens)  # consume the ','
+        printSymbolTag(",")
+        token = advance(tokens)
+        if token and token[0] == "identifier":
+            printIdentifier(token[1])
+        else:
+            print("Syntax error: expected variable name after ','")
+            return
+
+    # expect ';'
+    token = advance(tokens)
+    if token and token[0] == "symbol" and token[1] == ";":
+        printSymbolTag(";")
+    else:
+        print("Syntax error: expected ';'")
+        return
+
+    print("</classVarDec>")
+
+
+def compileSubroutineDec(keyword):
+    print("<subroutineDec>")
+
+    printKeyword(keyword)
+    token = advance(tokens)
+    if token and token[0] == "keyword" and token[1] in ["void", "int", "char", "boolean"]:
+        printKeyword(token[1])
+    elif token and token[0] == "identifier":
+        printIdentifier(token[1])
+    else:
+        print("Syntax error: expected return type")
+        return
+
+    token = advance(tokens)
+    #should find a subroutine name (identifier)
+    if token and token[0] == "identifier":
+        printIdentifier(token[1])
+    else:
+        print("Syntax error: expected subroutine name")
+        return
+    
+    compileParameterList()
+    compileSubroutineDec()
+    
+    
+    print("</subroutineDec>")
+
 
 def compileParameterList():
-    return
+    #should find a '(' symbol
+    token = advance(tokens)
+    if token and token[0] == "symbol" and token[1] == "(":
+        printSymbolTag("(")
+    else:
+        print("Syntax error: expected '('")
+        return
+    
+    print("<parameterList>")
 
+    #expect a parameter list 
+
+    # if next token is not ')' then we have parameters
+    if peek(tokens) and peek(tokens)[1] != ")":
+        # expect a type
+        token = advance(tokens)
+        if token and token[0] == "keyword" and token[1] in ["int", "char", "boolean"]:
+            printKeyword(token[1])
+        elif token and token[0] == "identifier":
+            printIdentifier(token[1])
+        else:
+            print("Syntax error: expected parameter type")
+            return
+        
+        # expect a varName
+        token = advance(tokens)
+        if token and token[0] == "identifier":
+            printIdentifier(token[1])
+        else:
+            print("Syntax error: expected parameter name")
+            return
+
+        # handle additional parameters (',' type varName)*
+        while peek(tokens) and peek(tokens)[1] == ",":
+            advance(tokens)  # consume ','
+            printSymbolTag(",")
+            
+            token = advance(tokens)
+            if token and token[0] == "keyword" and token[1] in ["int", "char", "boolean"]:
+                printKeyword(token[1])
+            elif token and token[0] == "identifier":
+                printIdentifier(token[1])
+            else:
+                print("Syntax error: expected parameter type after ','")
+                return
+            
+            token = advance(tokens)
+            if token and token[0] == "identifier":
+                printIdentifier(token[1])
+            else:
+                print("Syntax error: expected parameter name after ','")
+                return
+            
+    print("</parameterList>")
+
+    token = advance(tokens)
+    if token and token[0] == "symbol" and token[1] == ")":
+        printSymbolTag(")")
+    else:
+        print("Syntax error: expected ')'")
+        return
+    
+#done
 def compileSubroutineBody():
-    return
+    print("<subroutineBody>")
 
+    #should find a '{' symbol
+    token = advance(tokens)
+    if token and token[0] == "symbol" and token[1] == "{":
+        printSymbolTag("{")
+    else:
+        print("Syntax error: expected {'")
+        return
+    
+    #expect varDecs
+    while peek(tokens) and peek(tokens)[1] == "var":
+        compileVarDec()
+
+    #should find a '}' symbol
+    token = advance(tokens)
+    if token and token[0] == "symbol" and token[1] == "}":
+        printSymbolTag("}")
+    else:
+        print("Syntax error: expected }'")
+        return
+    
+    print("</subroutineBody>")
+
+
+#done
 def compileVarDec():
-    return
+    print("<varDec>")
+
+    token = advance(tokens)
+    if token and token[0] == "keyword" and token[1] == "var":
+        printKeyword("var")
+    else:
+        print("Syntax error: expected 'var'")
+        return
+
+    token = advance(tokens)
+
+    if token and token[0] == "keyword" and token[1] in ["int", "char", "boolean"]:
+        printKeyword(token[1])
+    elif token and token[0] == "identifier":
+        printIdentifier(token[1])
+    else:
+        print("Syntax error: expected an int, char, boolean, or class type")
+        return
+    
+    token = advance(tokens)
+
+    if token and token[0] == "identifier":
+        printIdentifier(token[1])
+    else:
+        print("Syntax error: expected varName")
+        return
+    
+    # use peek to check for ',' or ';'
+    while peek(tokens) and peek(tokens)[1] == ",":
+        advance(tokens)  # consume the ','
+        printSymbolTag(",")
+        token = advance(tokens)
+        if token and token[0] == "identifier":
+            printIdentifier(token[1])
+        else:
+            print("Syntax error: expected variable name after ','")
+            return
+
+    # expect ';'
+    token = advance(tokens)
+    if token and token[0] == "symbol" and token[1] == ";":
+        printSymbolTag(";")
+    else:
+        print("Syntax error: expected ';'")
+        return
+    
+    print("</varDec>")
+
+
 
 def compileStatements():
     return
