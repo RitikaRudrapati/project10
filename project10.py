@@ -233,9 +233,7 @@ def compileSubroutineDec(keyword):
     compileParameterList()
     compileSubroutineDec()
     
-    
     print("</subroutineDec>")
-
 
 def compileParameterList():
     #should find a '(' symbol
@@ -259,7 +257,7 @@ def compileParameterList():
         elif token and token[0] == "identifier":
             printIdentifier(token[1])
         else:
-            print("Syntax error: expected parameter type")
+            print("Syntax error: expected type")
             return
         
         # expect a varName
@@ -315,6 +313,9 @@ def compileSubroutineBody():
     #expect varDecs
     while peek(tokens) and peek(tokens)[1] == "var":
         compileVarDec()
+    
+    
+    compileStatements()
 
     #should find a '}' symbol
     token = advance(tokens)
@@ -378,9 +379,229 @@ def compileVarDec():
     print("</varDec>")
 
 
+#--------------------------------statements-----------------------------#
 
 def compileStatements():
+    token = peek(tokens)
+    while token and token[0] == "keyword" and token[1] in ["let", "if", "while", "do", "return"]:
+        print("<statements>")
+        token = peek(tokens)
+        if token[1] == "let":
+            compileLet()
+        elif token[1] == "if":
+            compileIf()
+        elif token[1] == "while":
+            compileWhile()
+        elif token[1] == "do":
+            compileDo()
+        elif token[1] == "return":
+            compileReturn()
+        else:
+            print("Syntax error: expected statement")
+            return
+        print("</statements>")
     return
+
+def compileLet():
+    
+    if advance(tokens)[1] == "let":
+        printKeyword("let")
+        token = advance(tokens)
+    else:
+        print("Syntax error: expected 'let'")
+        return
+    
+    print("letStatement>")
+    
+    if token and token[0] == "identifier":
+        printIdentifier(token[1])
+    else:
+        print("Syntax error: expected varName")
+        return
+    
+    while peek(tokens) and peek(tokens)[1] == "[":
+        advance(tokens) 
+        printSymbolTag("[")
+        compileExpression()
+        if advance(tokens)[1] == "]":
+            printSymbolTag("]")
+        else:
+            print("Syntax error: expected ']'")
+            return
+        
+    if advance(tokens)[1] == "=":
+        printSymbolTag("=")
+        compileExpression()
+    else:
+        print("Syntax error: expected '='")
+        return
+    
+    if advance(tokens)[1] == ";":
+        printSymbolTag(";")
+    else:
+        print("Syntax error: expected ';'")
+        return
+    
+    print("</letStatement>")
+
+def compileIf():
+    print("<ifStatement>")
+    if advance(tokens)[1] == "if":
+        printKeyword("if")
+    else:
+        print("Syntax error: expected 'if'")
+        return
+
+    if advance(tokens)[1] == "(":
+        printSymbolTag("(")
+        compileExpression()
+        if advance(tokens)[1] == ")":
+            printSymbolTag(")")
+        else:
+            print("Syntax error: expected ')'")
+            return
+    else:
+        print("Syntax error: expected '('")
+        return
+    
+    if advance(tokens)[1] == "{":
+        printSymbolTag("{")
+        compileStatements()
+        if advance(tokens)[1] == "}":
+            printSymbolTag("}")
+        else:
+            print("Syntax error: expected '}'")
+            return
+    else:
+        print("Syntax error: expected '{'")
+        return
+    
+    
+    while peek(tokens) and peek(tokens)[1] == "else":
+        advance(tokens)
+        printKeyword("else")
+
+        if advance(tokens)[1] == "{":
+            printSymbolTag("{")
+            compileStatements()
+        else:
+            print("Syntax error: expected '{'")
+            return
+    
+        if advance(tokens)[1] == "}":
+            printSymbolTag("}")
+        else:
+            print("Syntax error: expected '}'")
+            return
+    
+    print("</ifStatement>")
+        
+
+def compileWhile():
+    print("<whileStatement>")
+    if advance(tokens)[1] == "while":
+        printKeyword("while")
+    else:
+        print("Syntax error: expected 'while'")
+        return
+    
+    if advance(tokens)[1] == "(":
+        printSymbolTag("(")
+    else:
+        print("Syntax error: expected '('")
+        return
+    
+    compileExpression()
+
+    if advance(tokens)[1] == ")":
+        printSymbolTag(")")
+    else:
+        print("Syntax error: expected ')'")
+        return
+
+    if advance(tokens)[1] == "{":
+        printSymbolTag("{")
+    else:
+        print("Syntax error: expected '{'")
+        return
+    
+    compileStatements()
+
+    if advance(tokens)[1] == "}":
+        printSymbolTag("}")
+    else:
+        print("Syntax error: expected '}'")
+        return
+    
+    if peek(tokens) and peek(tokens)[1] == "else":
+        advance(tokens)
+        printKeyword("else")
+
+        if advance(tokens)[1] == "{":
+            printSymbolTag("{")
+            compileStatements()
+        else:
+            print("Syntax error: expected '{'")
+            return
+        
+        if advance(tokens)[1] == "}":
+            printSymbolTag("}")
+        else:
+            print("Syntax error: expected '}'")
+            return
+
+    print("</whileStatement>")
+    return
+
+def compileDo():
+    print("<DoStatement>")
+
+    if advance(tokens)[1] == "do":
+        printKeyword("do")
+    else:
+        print("Syntax error: expected 'do'")
+        return
+
+    compileSubroutineCall()
+
+    if advance(tokens)[1] == ";":
+        printSymbolTag(";")
+    else:
+        print("Syntax error: expected ';'")
+        return
+    
+    print("</DoStatement>")
+    return
+
+def compileReturn():
+    print("<returnStatement>")
+
+    if advance(tokens)[1] == "return":
+        printKeyword("return")
+    else:
+        print("Syntax error: expected 'return'")
+        return
+    
+    if peek(tokens) and peek(tokens)[1] != ";":
+        compileExpression()
+    else:
+        printSymbolTag(";")
+
+    print("</returnStatement>")
+    return
+
+#--------------------------------expressions-----------------------------#
+
+def compileExpression():
+    print("<expression>")
+    print("</expression>")
+    return
+
+def compileSubroutineCall():
+    print("<subroutineCall>")
+    print("</subroutineCall>")
+    return
+
 
 #------------------main function------------------#
 
