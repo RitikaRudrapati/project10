@@ -592,15 +592,76 @@ def compileReturn():
 
 #--------------------------------expressions-----------------------------#
 
+def printConstant(term):
+    if term[0] == "integerConstant":
+        print("<integerConstant>" + term[1] + "</integerConstant>")
+    else:
+        print("<stringConstant>" + term[1] + "</stringConstant>")
+
+def printKeywordConstant(term):
+    print("<keywordConstant>" + term[1] + "</keywordConstant>")
+
 def compileExpression():
     print("<expression>")
+    term = checkTerm()
+    if term != None:
+        if term == "IntegerConstant" or term == "StringConstant":
+            printConstant(advance(tokens))
+        elif term == "keywordConstant":
+            printKeywordConstant(advance(tokens))
+        elif term == "identifier":
+            varName = advance(tokens) #consume the identifier token
+            if peek(tokens) and peek(tokens)[1] == "[":
+                printIdentifier(varName)
+                advance(tokens) #consume the identifier token
+                printSymbolTag("[")
+                compileExpression()
+                if advance(tokens)[1] == "]":
+                    printSymbolTag("]")
+                else:
+                    print("Syntax error: expected ']'")
+                    return
+            elif peek(tokens) and peek(tokens)[1] == "(":
+                compileSubroutineCall()
+            else:    
+                printIdentifier(varName)
+
+        elif term == "symbol":
+            if checkTerm() == "unaryOp":
+                printSymbolTag(advance(tokens)[1]) #consume the unary operator
+                compileTerm()
+
+    else:
+        print("Syntax error: expected term")
+        return
+
     print("</expression>")
     return
 
 def compileSubroutineCall():
     print("<subroutineCall>")
+
+
     print("</subroutineCall>")
     return
+
+def checkTerm():
+    token = peek(tokens)
+    if token[0] == "integerConstant":
+        return "IntegerConstant"
+    elif token[0] == "stringConstant":
+        return "StringConstant"
+    elif token[0] == "keyword" and token[1] in ["true", "false", "null", "this"]:
+        return "keywordConstant"
+    elif token[0] == "identifier":
+        return "identifier"
+    elif token[0] == "symbol" and token[1] in symbols:
+        if token[1] in ["-", "~"]:
+            return "unaryOp"
+        else:
+            return "op"
+    else:
+        return None
 
 
 #------------------main function------------------#
