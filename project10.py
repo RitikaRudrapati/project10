@@ -15,7 +15,7 @@ keywords = [
     'this', 'let', 'do', 'if', 'else', 
     'while', 'return'
 ]
-operators = ['+', '-', '*', '/', '=', '==', '!=', '<', '>', '<=', '>=']
+operators = ['+', '-', '*', '/', '&', '|', '<', '>', '=']
 symbols = [
     '{', '}', '(', ')', '[', ']', 
     '.', ',', ';', '+', '-', '*', 
@@ -629,7 +629,16 @@ def compileExpression():
         elif term == "symbol":
             if checkTerm() == "unaryOp":
                 printSymbolTag(advance(tokens)[1]) #consume the unary operator
-                compileTerm()
+                compileExpression()
+            elif checkTerm() == "other symbol":
+                printSymbolTag(advance(tokens)[1]) #consume the symbol "("
+                compileExpression()
+                token = advance(tokens)
+                if token and token[0] == "symbol" and token[1]== ")":
+                    printSymbolTag(")")
+                else:
+                    print("Syntax error: expected ')'")
+                    return
 
     else:
         print("Syntax error: expected term")
@@ -641,8 +650,62 @@ def compileExpression():
 def compileSubroutineCall():
     print("<subroutineCall>")
 
+    token = advance(tokens)
 
+    #first case of subroutine call: subroutineName(expressionList)
+
+    if token and token[0] == "identifier":
+        printIdentifier(token[1])        
+        if peek(tokens) and peek(tokens)[1] == "(":
+
+            printSymbolTag("(")
+            compileExpressionList()
+
+            if advance(tokens)[1] == ")":
+                printSymbolTag(")")
+            else:
+                print("Syntax error: expected ')'")
+                return
+        elif peek(tokens) and peek(tokens)[1] == ".":
+            printSymbolTag(".")
+            token = advance(tokens)
+            if token and token[0] == "identifier":
+                printIdentifier(token[1])
+            else:
+                print("Syntax error: expected subroutine name after '.'")
+                return
+            
+            if peek(tokens) and peek(tokens)[1] == "(":
+                printSymbolTag("(")
+                compileExpressionList()
+                if advance(tokens)[1] == ")":
+                    printSymbolTag(")")
+                else:
+                    print("Syntax error: expected ')'")
+                    return
+            else:
+                print("Syntax error: expected '(' after subroutine name")
+                return
+    else:
+        print("Syntax error: expected identifier name")
+        return
+         
     print("</subroutineCall>")
+
+    return
+
+def compileExpressionList():
+    print("<expressionList>")
+    
+    if peek(tokens) and peek(tokens)[1] != ")":
+        compileExpression()
+
+        while peek(tokens) and peek(tokens)[1] == ",":
+            advance(tokens) #consume the ','
+            printSymbolTag(",")
+            compileExpression()
+
+    print("</expressionList>")
     return
 
 def checkTerm():
@@ -658,8 +721,10 @@ def checkTerm():
     elif token[0] == "symbol" and token[1] in symbols:
         if token[1] in ["-", "~"]:
             return "unaryOp"
-        else:
+        elif token[1] in operators:
             return "op"
+        else:
+            return "other symbol"
     else:
         return None
 
