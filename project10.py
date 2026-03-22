@@ -1,11 +1,11 @@
 #-----------------------------lexer design------------------------------#
 
 #this list will store all the toxers my design will find 
+from fileinput import filename
+
+
 tokens = []
 
-#still have to check for comments 
-#still have to edit keywords 
-#still have to maek sure my  lexer can handle string constants 
 
 #these lists contain jack allowed keywords, operators, or symbols 
 keywords = [
@@ -15,58 +15,107 @@ keywords = [
     'this', 'let', 'do', 'if', 'else', 
     'while', 'return'
 ]
+
 operators = ['+', '-', '*', '/', '&', '|', '<', '>', '=']
+
 symbols = [
     '{', '}', '(', ')', '[', ']', 
     '.', ',', ';', '+', '-', '*', 
     '/', '&', '|', '<', '>', '=', '~'
 ]
+
+
 def lexer(file):
-    #read the file as one big string
-    with open(file, 'r') as f:
-        code = f.read()
+    chars = createCharLits(file)
 
-    #start as an empty token and build it up char by char
-    currentToken = ''
+    while chars:
 
-    #loop through every char
-    for char in code:
+        char = advanceChar(chars)
 
-        #check if the char is a letter, number, or an underscore
-        if char.isalnum() or char == "_":
-            currentToken += char
+        #check to see if it is a digit
 
-        # whitespace means token ended
-        elif char.isspace():
-            if currentToken != "":
-                #decide if the token is a keyword, identifier, or integer constant
-                classify(currentToken, tokens)
-                #reset the current token for the next one
-                currentToken = ""
+        if char == '/':
+            if peekChar(chars) == '/':
+                # single line comment
+                while peekChar(chars) and peekChar(chars) != '\n':
+                    advanceChar(chars)
+            elif peekChar(chars) == '*':
+                # multi line comment
+                advanceChar(chars)  # consume the '*'
+                while chars:
+                    c = advanceChar(chars)
+                    if c == '*' and peekChar(chars) == '/':
+                        advanceChar(chars)  # consume closing '/'
+                        break
+            else:
+                # division symbol
+                appendToken("symbol", '/') 
 
-        # symbol encountered
+        elif char.isdigit():
+            digit = char
+
+            #keep consuming the characters until it is no longer a digit anymore
+            while peekChar(chars) and peekChar(chars).isdigit():
+                digit += advanceChar(chars)
+
+            #append the integer constant token to the list of tokens
+            appendToken("integerConstant", digit)
+
+        elif char.isalpha() or char == "_":
+            word = char 
+
+            #keep consuming the characters until it is no longer a letter, digit, or underscore
+            while peekChar(chars) and (peekChar(chars).isdigit() or peekChar(chars) == "_"):
+                word += advanceChar(chars)
+
+            if word in keywords:
+                #append the keyword token to the list of tokens
+                appendToken("keyword", word)
+            else:
+                appendToken("identifier", word)
+
+        elif char == '"':
+            stringConstant = ""
+
+            #keep consuming the characters until we find the closing double quote
+            while peekChar(chars) and peekChar(chars) != '"':
+                stringConstant += advanceChar(chars)
+
+            #consume the closing double quote
+            advanceChar(chars)
+
+            #append the string constant token to the list of tokens
+            appendToken("stringConstant", stringConstant)
+        
         elif char in symbols:
-            if currentToken != "":
-                classify(currentToken, tokens)
-                currentToken = ""
+            appendToken("symbol", char)
 
-            tokens.append(("symbol", char))
+        elif char.isspace():
+            continue
 
-    # last token at end of file
-    if currentToken != "":
-        classify(currentToken, tokens)
+        return tokens
+        
+def createCharLits(file):
+    chars = []
+    for line in file:
+        for char in line:
+            chars.append(char)
+    return chars
 
-    return tokens
-
-#classify the token as a keyword, identifier, or integer constant and add it to the tokens list            
-def classify(word, tokens):
-
-    if word in keywords:
-        tokens.append(("keyword", word))
-    elif word.isdigit():
-        tokens.append(("integerConstant", word))
+def advanceChar(chars):
+    if chars:
+        return chars.pop(0)
     else:
-        tokens.append(("identifier", word))
+        return None
+    
+def peekChar(chars):
+    if chars:
+        return chars[0]
+    else:
+        return None
+
+def appendToken(tokenType, tokenValue):
+    tokens.append((tokenType, tokenValue))
 
 
 #------------------parser--------------#
