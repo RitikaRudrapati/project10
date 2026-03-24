@@ -1,8 +1,8 @@
+
+import os
+import sys
+
 #-----------------------------lexer design------------------------------#
-
-#this list will store all the toxers my design will find 
-from fileinput import filename
-
 
 tokens = []
 
@@ -25,8 +25,7 @@ symbols = [
 ]
 
 
-def lexer(file):
-    chars = createCharLits(file)
+def lexer(chars):
 
     while chars:
 
@@ -65,7 +64,7 @@ def lexer(file):
             word = char 
 
             #keep consuming the characters until it is no longer a letter, digit, or underscore
-            while peekChar(chars) and (peekChar(chars).isdigit() or peekChar(chars) == "_"):
+            while peekChar(chars) and (peekChar(chars).isalpha() or peekChar(chars).isdigit() or peekChar(chars) == "_"):
                 word += advanceChar(chars)
 
             if word in keywords:
@@ -93,7 +92,8 @@ def lexer(file):
         elif char.isspace():
             continue
 
-        return tokens
+    
+    return tokens
         
 def createCharLits(file):
     chars = []
@@ -119,10 +119,6 @@ def appendToken(tokenType, tokenValue):
 
 
 #------------------parser--------------#
-
-def parser(tokens):
-    #this will be the list of parsed tokens 
-    parsedTokens = []
 
 def advance(tokens):
     if tokens:
@@ -261,8 +257,12 @@ def compileClassVarDec():
 def compileSubroutineDec(keyword):
     print("<subroutineDec>")
 
+    advance(tokens)
+    
     printKeyword(keyword)
+
     token = advance(tokens)
+
     if token and token[0] == "keyword" and token[1] in ["void", "int", "char", "boolean"]:
         printKeyword(token[1])
     elif token and token[0] == "identifier":
@@ -280,7 +280,7 @@ def compileSubroutineDec(keyword):
         return
     
     compileParameterList()
-    compileSubroutineDec()
+    compileSubroutineBody()
     
     print("</subroutineDec>")
 
@@ -432,8 +432,9 @@ def compileVarDec():
 
 def compileStatements():
     token = peek(tokens)
+    print("<statements>")
+
     while token and token[0] == "keyword" and token[1] in ["let", "if", "while", "do", "return"]:
-        print("<statements>")
         token = peek(tokens)
         if token[1] == "let":
             compileLet()
@@ -448,10 +449,13 @@ def compileStatements():
         else:
             print("Syntax error: expected statement")
             return
-        print("</statements>")
+    
+    print("</statements>")
+    
     return
 
 def compileLet():
+    print("<letStatement>")
     
     if advance(tokens)[1] == "let":
         printKeyword("let")
@@ -460,7 +464,6 @@ def compileLet():
         print("Syntax error: expected 'let'")
         return
     
-    print("letStatement>")
     
     if token and token[0] == "identifier":
         printIdentifier(token[1])
@@ -582,28 +585,12 @@ def compileWhile():
         print("Syntax error: expected '}'")
         return
     
-    if peek(tokens) and peek(tokens)[1] == "else":
-        advance(tokens)
-        printKeyword("else")
-
-        if advance(tokens)[1] == "{":
-            printSymbolTag("{")
-            compileStatements()
-        else:
-            print("Syntax error: expected '{'")
-            return
-        
-        if advance(tokens)[1] == "}":
-            printSymbolTag("}")
-        else:
-            print("Syntax error: expected '}'")
-            return
-
+    
     print("</whileStatement>")
     return
 
 def compileDo():
-    print("<DoStatement>")
+    print("<doStatement>")
 
     if advance(tokens)[1] == "do":
         printKeyword("do")
@@ -611,15 +598,21 @@ def compileDo():
         print("Syntax error: expected 'do'")
         return
 
-    compileSubroutineCall()
-
+    token = advance(tokens)
+    
+    if token and token[0] == "identifier":
+        compileSubroutineCall(token)
+    else:
+        print("Syntax error: expected subroutine name")
+        return
+    
     if advance(tokens)[1] == ";":
         printSymbolTag(";")
     else:
         print("Syntax error: expected ';'")
         return
     
-    print("</DoStatement>")
+    print("</doStatement>")
     return
 
 def compileReturn():
@@ -633,11 +626,16 @@ def compileReturn():
     
     if peek(tokens) and peek(tokens)[1] != ";":
         compileExpression()
-    else:
+    
+    token = advance(tokens)
+
+    if token and token[1] == ";":
         printSymbolTag(";")
+    else:
+        print("Syntax error: expected ';'")
+        return
 
     print("</returnStatement>")
-    return
 
 #--------------------------------expressions-----------------------------#
 
@@ -652,7 +650,23 @@ def printKeywordConstant(term):
 
 def compileExpression():
     print("<expression>")
+
+    print("<term>")
+    compileTerm()  
+    print("</term>")
+
+    # handle (op term)*
+    while peek(tokens) and peek(tokens)[1] in operators:
+        printSymbolTag(advance(tokens)[1])  # print the op
+        print("<term>")
+        compileTerm()
+        print("</term>")
+
+    print("</expression>")
+
+def compileTerm():
     term = checkTerm()
+
     if term != None:
         if term == "IntegerConstant" or term == "StringConstant":
             printConstant(advance(tokens))
@@ -661,8 +675,11 @@ def compileExpression():
         elif term == "identifier":
             varName = advance(tokens) #consume the identifier token
             if peek(tokens) and peek(tokens)[1] == "[":
-                printIdentifier(varName)
+                printIdentifier(varName[1])
+
+                #should i comment out or not 
                 advance(tokens) #consume the identifier token
+
                 printSymbolTag("[")
                 compileExpression()
                 if advance(tokens)[1] == "]":
@@ -670,78 +687,79 @@ def compileExpression():
                 else:
                     print("Syntax error: expected ']'")
                     return
-            elif peek(tokens) and peek(tokens)[1] == "(":
-                compileSubroutineCall()
+            elif peek(tokens) and peek(tokens)[1] in ["(", "."]:
+                compileSubroutineCall(varName)
             else:    
-                printIdentifier(varName)
+                printIdentifier(varName[1])
 
-        elif term == "symbol":
-            if checkTerm() == "unaryOp":
-                printSymbolTag(advance(tokens)[1]) #consume the unary operator
-                compileExpression()
-            elif checkTerm() == "other symbol":
-                printSymbolTag(advance(tokens)[1]) #consume the symbol "("
-                compileExpression()
-                token = advance(tokens)
-                if token and token[0] == "symbol" and token[1]== ")":
-                    printSymbolTag(")")
-                else:
-                    print("Syntax error: expected ')'")
-                    return
+        elif term == "unaryOp":
+                printSymbolTag(advance(tokens)[1])  # consume the unary op
+                print("<term>")
+                compileTerm()
+                print("</term>")
+
+        elif term == "other symbol":
+            printSymbolTag(advance(tokens)[1]) #consume the symbol "("
+            compileExpression()
+            token = advance(tokens)
+            if token and token[0] == "symbol" and token[1]== ")":
+                printSymbolTag(")")
+            else:
+                print("Syntax error: expected ')'")
+                return
 
     else:
         print("Syntax error: expected term")
         return
 
-    print("</expression>")
     return
 
-def compileSubroutineCall():
+def compileSubroutineCall(varName):
     print("<subroutineCall>")
+    printIdentifier(varName[1])
 
-    token = advance(tokens)
+    # remove the "if token and token[0] == identifier" check entirely
+    # just directly check what comes next with peek
+    if peek(tokens) and peek(tokens)[1] == "(":
+        advance(tokens)  # consume '('
+        printSymbolTag("(")
+        compileExpressionList()
+        token = advance(tokens)
+        if token and token[1] == ")":
+            printSymbolTag(")")
+        else:
+            print("Syntax error: expected ')'")
+            return
 
-    #first case of subroutine call: subroutineName(expressionList)
-
-    if token and token[0] == "identifier":
-        printIdentifier(token[1])        
-        if peek(tokens) and peek(tokens)[1] == "(":
-
+    elif peek(tokens) and peek(tokens)[1] == ".":
+        advance(tokens)  # consume '.'
+        printSymbolTag(".")
+        token = advance(tokens)
+        if token and token[0] == "identifier":
+            printIdentifier(token[1])
+        else:
+            print("Syntax error: expected subroutine name after '.'")
+            return
+        
+        token = advance(tokens)
+        if token and token[1] == "(":
             printSymbolTag("(")
             compileExpressionList()
-
-            if advance(tokens)[1] == ")":
+            token = advance(tokens)
+            if token and token[1] == ")":
                 printSymbolTag(")")
             else:
                 print("Syntax error: expected ')'")
                 return
-        elif peek(tokens) and peek(tokens)[1] == ".":
-            printSymbolTag(".")
-            token = advance(tokens)
-            if token and token[0] == "identifier":
-                printIdentifier(token[1])
-            else:
-                print("Syntax error: expected subroutine name after '.'")
-                return
-            
-            if peek(tokens) and peek(tokens)[1] == "(":
-                printSymbolTag("(")
-                compileExpressionList()
-                if advance(tokens)[1] == ")":
-                    printSymbolTag(")")
-                else:
-                    print("Syntax error: expected ')'")
-                    return
-            else:
-                print("Syntax error: expected '(' after subroutine name")
-                return
+        else:
+            print("Syntax error: expected '('")
+            return
     else:
-        print("Syntax error: expected identifier name")
+        print("Syntax error: expected '(' or '.'")
         return
          
     print("</subroutineCall>")
 
-    return
 
 def compileExpressionList():
     print("<expressionList>")
@@ -759,6 +777,9 @@ def compileExpressionList():
 
 def checkTerm():
     token = peek(tokens)
+    if token == None:
+        return None
+    
     if token[0] == "integerConstant":
         return "IntegerConstant"
     elif token[0] == "stringConstant":
@@ -781,6 +802,36 @@ def checkTerm():
 #------------------main function------------------#
 
 
+def readFiles(path):
+    #conver the path to a list of chars
+    with open(path, 'r') as f:
+        return list(f.read())
+    
+def main():
+    if len(sys.argv) > 1:
+        path = sys.argv[1]
+    else:
+        path = input("Enter the path to the file or directory to translate: ")
+
+    if os.path.isdir(path):
+        # get all .jack files in the directory
+        jackFiles = [f for f in os.listdir(path) if f.endswith(".jack")]
+        for jackFile in jackFiles:
+            fullPath = os.path.join(path, jackFile)
+            processFile(fullPath)
+    elif os.path.isfile(path) and path.endswith(".jack"):
+        processFile(path)
+    else:
+        print("Error: expected a .jack file or directory containing .jack files")
 
 
+def processFile(path):
+    global tokens
+    tokens = [] #reset the list of tokens for each file
+    with open(path, 'r') as f:
+        chars = createCharLits(f)
+        lexer(chars)
+        print(tokens)
+        #compileClass()
 
+main()
