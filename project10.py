@@ -2,6 +2,11 @@
 import os
 import sys
 
+global message
+
+message = ""
+file = ""
+
 #-----------------------------lexer design------------------------------#
 
 tokens = []
@@ -32,7 +37,6 @@ def lexer(chars):
         char = advanceChar(chars)
 
         #check to see if it is a digit
-
         if char == '/':
             if peekChar(chars) == '/':
                 # single line comment
@@ -117,9 +121,7 @@ def peekChar(chars):
 def appendToken(tokenType, tokenValue):
     tokens.append((tokenType, tokenValue))
 
-
-#------------------parser--------------#
-
+#helper functions for the parser to advance, peek, and check the type of the next token without consuming it
 def advance(tokens):
     if tokens:
         return tokens.pop(0)
@@ -145,24 +147,38 @@ def findKeyword(token):
         return None
 
 def printClassTag(indentifer):
-    print("<class>")
+    global message
+    message += "<class>\n"
     printKeyword("class")
     printIdentifier(indentifer)
 
 def printSymbolTag(symbol):
-    print("<symbol>" + symbol + "</symbol>")
+    global message
+
+    if symbol == "<":
+        symbol = "&lt;"
+    elif symbol == ">":
+        symbol = "&gt;"
+    elif symbol == "&":
+        symbol = "&amp;"
+
+    message += "<symbol>" + symbol + "</symbol>\n"
 
 def printClassVarDecTag():
-    print("<classVarDec>")
-    print("</classVarDec>")
+    global message
+    message += "<classVarDec>\n"
+    message += "</classVarDec>\n"
 
 def printKeyword(keyword):
-    print("<keyword>" + keyword + "</keyword>")
+    global message
+    message += "<keyword>" + keyword + "</keyword>\n"
 
 def printIdentifier(identifier):
-    print("<identifier>" + identifier + "</identifier>")
+    global message
+    message += "<identifier>" + identifier + "</identifier>\n"
 
 def compileClass():
+    global message 
     # advance and check for 'class' keyword
     token = advance(tokens)
     if token and token[0] == "keyword" and token[1] == "class":
@@ -201,10 +217,11 @@ def compileClass():
         print("Syntax error: expected '}'")
         return
 
-    print("</class>")
+    message += "</class>\n"
 
 def compileClassVarDec():
-    print("<classVarDec>")
+    global message
+    message += "<classVarDec>\n"
 
     # expect 'static' or 'field'
     token = advance(tokens)
@@ -227,7 +244,7 @@ def compileClassVarDec():
     # expect first varName
     token = advance(tokens)
     if token and token[0] == "identifier":
-        print("<identifier> " + token[1] + " </identifier>")
+        message += "<identifier> " + token[1] + "</identifier>\n"
     else:
         print("Syntax error: expected varName")
         return
@@ -251,11 +268,12 @@ def compileClassVarDec():
         print("Syntax error: expected ';'")
         return
 
-    print("</classVarDec>")
+    message += "</classVarDec>\n"
 
 
 def compileSubroutineDec(keyword):
-    print("<subroutineDec>")
+    global message
+    message += "<subroutineDec>\n"
 
     advance(tokens)
     
@@ -282,9 +300,10 @@ def compileSubroutineDec(keyword):
     compileParameterList()
     compileSubroutineBody()
     
-    print("</subroutineDec>")
+    message += "</subroutineDec>\n"
 
 def compileParameterList():
+    global message
     #should find a '(' symbol
     token = advance(tokens)
     if token and token[0] == "symbol" and token[1] == "(":
@@ -293,7 +312,7 @@ def compileParameterList():
         print("Syntax error: expected '('")
         return
     
-    print("<parameterList>")
+    message += "<parameterList>\n"
 
     #expect a parameter list 
 
@@ -338,7 +357,7 @@ def compileParameterList():
                 print("Syntax error: expected parameter name after ','")
                 return
             
-    print("</parameterList>")
+    message += "</parameterList>\n"
 
     token = advance(tokens)
     if token and token[0] == "symbol" and token[1] == ")":
@@ -347,9 +366,10 @@ def compileParameterList():
         print("Syntax error: expected ')'")
         return
     
-#done
+#compile the subroutine body, which should be in the form '{ varDec* statements }'
 def compileSubroutineBody():
-    print("<subroutineBody>")
+    global message
+    message += "<subroutineBody>\n"
 
     #should find a '{' symbol
     token = advance(tokens)
@@ -374,12 +394,13 @@ def compileSubroutineBody():
         print("Syntax error: expected }'")
         return
     
-    print("</subroutineBody>")
+    message += "</subroutineBody>\n"
 
 
 #done
 def compileVarDec():
-    print("<varDec>")
+    global message
+    message += "<varDec>\n"
 
     token = advance(tokens)
     if token and token[0] == "keyword" and token[1] == "var":
@@ -425,16 +446,15 @@ def compileVarDec():
         print("Syntax error: expected ';'")
         return
     
-    print("</varDec>")
+    message += "</varDec>\n"
 
 
-#--------------------------------statements-----------------------------#
-
+#check to see if the next token is a statement, and if it is, compile the statement, and keep doing this until there are no more statements to compile, and then return
 def compileStatements():
-    token = peek(tokens)
-    print("<statements>")
+    global message 
+    message += "<statements>\n"
 
-    while token and token[0] == "keyword" and token[1] in ["let", "if", "while", "do", "return"]:
+    while peek(tokens) and peek(tokens)[0] == "keyword" and peek(tokens)[1] in ["let", "if", "while", "do", "return"]:
         token = peek(tokens)
         if token[1] == "let":
             compileLet()
@@ -450,12 +470,14 @@ def compileStatements():
             print("Syntax error: expected statement")
             return
     
-    print("</statements>")
+    message += "</statements>\n"
     
     return
 
+#check to see if the next token is a let statement, and if it is, compile the let statement, which should be in the form 'let varName = expression;' or 'let varName[expression] = expression;'
 def compileLet():
-    print("<letStatement>")
+    global message
+    message += "<letStatement>\n"
     
     if advance(tokens)[1] == "let":
         printKeyword("let")
@@ -494,10 +516,13 @@ def compileLet():
         print("Syntax error: expected ';'")
         return
     
-    print("</letStatement>")
+    message += "</letStatement>\n"
 
+
+#compile an if statement, which can be either 'if (expression) {statements}' or 'if (expression) {statements} else {statements}'
 def compileIf():
-    print("<ifStatement>")
+    global message
+    message += "<ifStatement>\n"
     if advance(tokens)[1] == "if":
         printKeyword("if")
     else:
@@ -546,11 +571,14 @@ def compileIf():
             print("Syntax error: expected '}'")
             return
     
-    print("</ifStatement>")
+    message += "</ifStatement>\n"
         
 
+#compile a while statement 
 def compileWhile():
-    print("<whileStatement>")
+    global message
+    message += "<whileStatement>\n"
+
     if advance(tokens)[1] == "while":
         printKeyword("while")
     else:
@@ -563,6 +591,7 @@ def compileWhile():
         print("Syntax error: expected '('")
         return
     
+    #check to see if there is an expression after the '(' symbol, and if there is, compile the expression
     compileExpression()
 
     if advance(tokens)[1] == ")":
@@ -577,6 +606,7 @@ def compileWhile():
         print("Syntax error: expected '{'")
         return
     
+    #check to see if it this an empty while loop or if there are statements to compile, and if there are statements, compile the statements
     compileStatements()
 
     if advance(tokens)[1] == "}":
@@ -586,11 +616,14 @@ def compileWhile():
         return
     
     
-    print("</whileStatement>")
+    message += "</whileStatement>\n"
     return
 
+
+#compile a do statement, calling compileSubroutineCall to handle the subroutine call, and then expect a ';' symbol at the end
 def compileDo():
-    print("<doStatement>")
+    global message
+    message += "<doStatement>\n"
 
     if advance(tokens)[1] == "do":
         printKeyword("do")
@@ -612,11 +645,13 @@ def compileDo():
         print("Syntax error: expected ';'")
         return
     
-    print("</doStatement>")
+    message += "</doStatement>\n"
     return
 
+#compile a return statement, which can be either 'return;' or 'return expression;'
 def compileReturn():
-    print("<returnStatement>")
+    global message
+    message += "<returnStatement>\n"
 
     if advance(tokens)[1] == "return":
         printKeyword("return")
@@ -635,36 +670,42 @@ def compileReturn():
         print("Syntax error: expected ';'")
         return
 
-    print("</returnStatement>")
+    message += "</returnStatement>\n"
 
-#--------------------------------expressions-----------------------------#
 
+#helper functions to print the different types of terms
 def printConstant(term):
+    global message
+
     if term[0] == "integerConstant":
-        print("<integerConstant>" + term[1] + "</integerConstant>")
+        message += "<integerConstant>" + term[1] + "</integerConstant>\n"
     else:
-        print("<stringConstant>" + term[1] + "</stringConstant>")
+        message += "<stringConstant>" + term[1] + "</stringConstant>\n"
 
 def printKeywordConstant(term):
-    print("<keywordConstant>" + term[1] + "</keywordConstant>")
+    global message
+    message += "<keywordConstant>" + term[1] + "</keywordConstant>\n"
 
 def compileExpression():
-    print("<expression>")
+    global message
+    message += "<expression>\n"
 
-    print("<term>")
+    message += "<term>\n"
     compileTerm()  
-    print("</term>")
+    message += "</term>\n"
 
     # handle (op term)*
     while peek(tokens) and peek(tokens)[1] in operators:
         printSymbolTag(advance(tokens)[1])  # print the op
-        print("<term>")
+        message += "<term>\n"
         compileTerm()
-        print("</term>")
+        message += "</term>\n"
 
-    print("</expression>")
+    message += "</expression>\n"
 
+#compile a term, which can be an integer constant, string constant, keyword constant, varName, varName[expression], subroutineCall, (expression), or unaryOp term
 def compileTerm():
+    global message
     term = checkTerm()
 
     if term != None:
@@ -687,16 +728,20 @@ def compileTerm():
                 else:
                     print("Syntax error: expected ']'")
                     return
+                
+
             elif peek(tokens) and peek(tokens)[1] in ["(", "."]:
                 compileSubroutineCall(varName)
+
+
             else:    
                 printIdentifier(varName[1])
 
         elif term == "unaryOp":
                 printSymbolTag(advance(tokens)[1])  # consume the unary op
-                print("<term>")
+                message += "<term>\n"
                 compileTerm()
-                print("</term>")
+                message += "</term>\n"
 
         elif term == "other symbol":
             printSymbolTag(advance(tokens)[1]) #consume the symbol "("
@@ -714,12 +759,12 @@ def compileTerm():
 
     return
 
+#compile the subroutine call, which can be either subroutineName(expressionList) or (className|varName).subroutineName(expressionList)
+
 def compileSubroutineCall(varName):
-    print("<subroutineCall>")
+    global message
     printIdentifier(varName[1])
 
-    # remove the "if token and token[0] == identifier" check entirely
-    # just directly check what comes next with peek
     if peek(tokens) and peek(tokens)[1] == "(":
         advance(tokens)  # consume '('
         printSymbolTag("(")
@@ -758,11 +803,10 @@ def compileSubroutineCall(varName):
         print("Syntax error: expected '(' or '.'")
         return
          
-    print("</subroutineCall>")
-
-
+#keep compiling expressions until we find a ')' symbol, but do not consume the ')' symbol
 def compileExpressionList():
-    print("<expressionList>")
+    global message
+    message += "<expressionList>\n"
     
     if peek(tokens) and peek(tokens)[1] != ")":
         compileExpression()
@@ -772,9 +816,10 @@ def compileExpressionList():
             printSymbolTag(",")
             compileExpression()
 
-    print("</expressionList>")
+    message += "</expressionList>\n"
     return
 
+#check what type of term by peeking and return the type as a string, but do not consume the token
 def checkTerm():
     token = peek(tokens)
     if token == None:
@@ -798,15 +843,13 @@ def checkTerm():
     else:
         return None
 
-
-#------------------main function------------------#
-
-
+#read the files and return a list of characters
 def readFiles(path):
     #conver the path to a list of chars
     with open(path, 'r') as f:
         return list(f.read())
-    
+
+#code taken from my project 7&8  
 def main():
     if len(sys.argv) > 1:
         path = sys.argv[1]
@@ -827,11 +870,32 @@ def main():
 
 def processFile(path):
     global tokens
+    global message
+
+    message = "" #reset the message for each file
     tokens = [] #reset the list of tokens for each file
+
     with open(path, 'r') as f:
         chars = createCharLits(f)
         lexer(chars)
-        print(tokens)
-        #compileClass()
+        
+        compileClass()
+        
+        writeToFile(path)
 
+        print("Output written to " + path.split(".")[0] + ".xml")
+
+
+def writeToFile(path):
+    global message
+
+    #code credit to stack overflow for this part: https://stackoverflow.com/questions/541390/extracting-extension-from-filename-in-python
+    folder = os.path.dirname(path)
+    base_name = os.path.basename(path).split(".")[0]
+    output_path = os.path.join(folder, base_name + ".xml")    
+
+    with open(output_path, "w") as outfile:
+        outfile.write(message)
+
+#run the main function
 main()
