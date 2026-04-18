@@ -226,6 +226,7 @@ def compileClass():
 
 def compileClassVarDec():
     global message
+    message += "<classVarDec>\n"
 
     token = advance(tokens)
     if token and token[0] == "keyword" and token[1] in ["static", "field"]:
@@ -250,7 +251,7 @@ def compileClassVarDec():
         printSymbolTag(",")
         token = advance(tokens)
         if token and token[0] == "identifier":
-            define(token[1], var_type, kind)  
+            define(token[1], var_type, kind)   # <-- add this (same kind/type, new name)
             printIdentifier(token[1])
 
     # expect ';'
@@ -261,11 +262,13 @@ def compileClassVarDec():
         print("Syntax error: expected ';'")
         return
 
+    message += "</classVarDec>\n"
+
 
 def compileSubroutineDec(keyword):
     global message, current_subroutine_type
-    current_subroutine_type = keyword   
-    resetSubroutineTable()              
+    current_subroutine_type = keyword   # <-- add this
+    resetSubroutineTable()              # <-- add this
 
     if keyword == "method":
         define("this", current_class_name, "arg")
@@ -335,9 +338,9 @@ def compileParameterList():
             print("Syntax error: expected parameter name")
             return
 
-        
+        # handle additional parameters (',' type varName)*
         while peek(tokens) and peek(tokens)[1] == ",":
-            advance(tokens) '
+            advance(tokens)  # consume ','
             printSymbolTag(",")
             
             token = advance(tokens)
@@ -369,30 +372,27 @@ def compileParameterList():
 def compileSubroutineBody():
     global message
 
+    #should find a '{' symbol
     token = advance(tokens)
-    if not (token and token[0] == "symbol" and token[1] == "{"):
-        print("Syntax error: expected '{'")
+    if token and token[0] == "symbol" and token[1] == "{":
+        printSymbolTag("{")
+    else:
+        print("Syntax error: expected {'")
         return
-
+    
+    #expect varDecs
     while peek(tokens) and peek(tokens)[1] == "var":
         compileVarDec()
-
-    writeFunction(current_class_name + "." + current_subroutine_name, varCount("var"))
-
-    if current_subroutine_type == "constructor":
-        writePush("constant", varCount("field"))
-        writeCall("Memory.alloc", 1)
-        writePop("pointer", 0)
-
-    elif current_subroutine_type == "method":
-        writePush("argument", 0)
-        writePop("pointer", 0)
-
+    
+    
     compileStatements()
 
+    #should find a '}' symbol
     token = advance(tokens)
-    if not (token and token[0] == "symbol" and token[1] == "}"):
-        print("Syntax error: expected '}'")
+    if token and token[0] == "symbol" and token[1] == "}":
+        printSymbolTag("}")
+    else:
+        print("Syntax error: expected }'")
         return
     
 
@@ -669,7 +669,11 @@ def compileReturn():
 def printConstant(term):
     global message
 
-    
+    if term[0] == "integerConstant":
+        message += "<integerConstant>" + term[1] + "</integerConstant>\n"
+    else:
+        message += "<stringConstant>" + term[1] + "</stringConstant>\n"
+
 def printKeywordConstant(term):
     global message
     message += "<keywordConstant>" + term[1] + "</keywordConstant>\n"
@@ -987,6 +991,8 @@ def writePush(segment, index):
     global message
     message += "push " + segment + " " + str(index) + "\n"
 
+
+
 #read the files and return a list of characters
 def readFiles(path):
     #conver the path to a list of chars
@@ -1036,7 +1042,7 @@ def writeToFile(path):
     #code credit to stack overflow for this part: https://stackoverflow.com/questions/541390/extracting-extension-from-filename-in-python
     folder = os.path.dirname(path)
     base_name = os.path.basename(path).split(".")[0]
-    output_path = os.path.join(folder, base_name + ".vmchn")    
+    output_path = os.path.join(folder, base_name + ".xml")    
 
     with open(output_path, "w") as outfile:
         outfile.write(message)
