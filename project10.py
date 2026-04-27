@@ -337,7 +337,7 @@ def compileParameterList():
 
         
         while peek(tokens) and peek(tokens)[1] == ",":
-            advance(tokens) '
+            advance(tokens)
             printSymbolTag(",")
             
             token = advance(tokens)
@@ -675,21 +675,16 @@ def printKeywordConstant(term):
     message += "<keywordConstant>" + term[1] + "</keywordConstant>\n"
 
 def compileExpression():
-    global message
-    message += "<expression>\n"
-
-    message += "<term>\n"
+    
     compileTerm()  
-    message += "</term>\n"
+  
 
     # handle (op term)*
     while peek(tokens) and peek(tokens)[1] in operators:
-        printSymbolTag(advance(tokens)[1])  # print the op
-        message += "<term>\n"
-        compileTerm()
-        message += "</term>\n"
+        op = advance(tokens)[1]        # save the operator
+        compileTerm()                  # push right side
+        writeArithmetic(op)
 
-    message += "</expression>\n"
 
 #compile a term, which can be an integer constant, string constant, keyword constant, varName, varName[expression], subroutineCall, (expression), or unaryOp term
 def compileTerm():
@@ -698,48 +693,38 @@ def compileTerm():
 
     if term != None:
         if term == "IntegerConstant" or term == "StringConstant":
-            printConstant(advance(tokens))
+            token = advance(tokens)
+            writePushConstant(token[1])
         elif term == "keywordConstant":
-            printKeywordConstant(advance(tokens))
+            token = advance(tokens)
+            writeKeywordConstant(token[1])
         elif term == "identifier":
             varName = advance(tokens) #consume the identifier token
             if peek(tokens) and peek(tokens)[1] == "[":
-                printIdentifier(varName[1])
-
-                #should i comment out or not 
-                advance(tokens) #consume the identifier token
-
-                printSymbolTag("[")
-                compileExpression()
-                if advance(tokens)[1] == "]":
-                    printSymbolTag("]")
-                else:
-                    print("Syntax error: expected ']'")
-                    return
-                
+                writePushVar(varName[1])       
+                advance(tokens)                 
+                compileExpression()            
+                advance(tokens)                
+                writeArithmetic("+")          
+                writePop("pointer", 1)        
+                writePush("that", 0)
 
             elif peek(tokens) and peek(tokens)[1] in ["(", "."]:
                 compileSubroutineCall(varName)
 
 
             else:    
-                printIdentifier(varName[1])
+                writePushVar(varName[1])
 
         elif term == "unaryOp":
-                printSymbolTag(advance(tokens)[1])  # consume the unary op
-                message += "<term>\n"
-                compileTerm()
-                message += "</term>\n"
+                op = advance(tokens)[1]            
+                compileTerm()                     
+                writeUnaryArithmetic(op)
 
         elif term == "other symbol":
-            printSymbolTag(advance(tokens)[1]) #consume the symbol "("
+            advance(tokens)                    # consume '('
             compileExpression()
-            token = advance(tokens)
-            if token and token[0] == "symbol" and token[1]== ")":
-                printSymbolTag(")")
-            else:
-                print("Syntax error: expected ')'")
-                return
+            advance(tokens)
 
     else:
         print("Syntax error: expected term")
