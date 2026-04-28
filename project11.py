@@ -241,25 +241,25 @@ def compileClassVarDec():
     token = advance(tokens)
 
     if token and token[0] == "keyword" and token[1] in ["static", "field"]:
-        kind = token[1]        # <-- save kind
+        kind = token[1]    
 
 
     token = advance(tokens)
     if token and token[0] == "keyword" and token[1] in ["int", "char", "boolean"]:
-        var_type = token[1]    # <-- save type
+        var_type = token[1]   
     elif token and token[0] == "identifier":
-        var_type = token[1]    # <-- save type
+        var_type = token[1]   
 
     token = advance(tokens)
     if token and token[0] == "identifier":
-        define(token[1], var_type, kind)   # <-- add this
+        define(token[1], var_type, kind)  
 
     while peek(tokens) and peek(tokens)[1] == ",":
         advance(tokens)
         token = advance(tokens)
 
         if token and token[0] == "identifier":
-            define(token[1], var_type, kind)   # <-- add this (same kind/type, new name)
+            define(token[1], var_type, kind)  
 
     # expect ';'
     token = advance(tokens)
@@ -296,10 +296,9 @@ def compileSubroutineDec(keyword):
     if keyword == "method":
         define("this", current_class_name, "arg")
 
-
     advance(tokens)  # keyword
-    advance(tokens)  # return type (keyword or identifier, doesn't matter)
-    token = advance(tokens)  # subroutine name — always an identifier
+    advance(tokens)  # return type 
+    token = advance(tokens) 
     current_subroutine_name = token[1]
     
     compileParameterList()
@@ -778,12 +777,6 @@ def checkTerm():
         return None
 
 
-
-#-------------------------project 11-------------------------#
-
-
-#-----------------symbol table-------------------#
-
 def define(name, type, kind):
     if kind in ("static", "field"):
         index = len(class_symbol_table[kind])
@@ -884,8 +877,6 @@ def writeArithmetic(command):
     elif command == "not":
         message += "not\n"
 
-
-
 def writePop(segment, index):
     global message
     message += "pop " + segment + " " + str(index) + "\n"
@@ -893,7 +884,6 @@ def writePop(segment, index):
 def writePush(segment, index):
     global message
     message += "push " + segment + " " + str(index) + "\n"
-
 
 
 #read the files and return a list of characters
