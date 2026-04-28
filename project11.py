@@ -1,4 +1,3 @@
-
 import os
 import sys
 
@@ -188,9 +187,10 @@ def writeReturn():
     message += "return\n"
 
 def writeKeywordConstant(keywordConstant):
+    global message
     if keywordConstant == "true":
         writePushConstant(0)
-        writeUnarayArithmetic("not")
+        message += "not\n"
     elif keywordConstant in ["false", "null"]:
         writePushConstant(0)
     elif keywordConstant == "this":
@@ -216,6 +216,7 @@ def compileClass():
         return    
 
     # advance and check for '{'
+    token = advance(tokens)
     if not (token and token[1] == "{"):
         print("Syntax error: expected '{'")
         return
@@ -229,6 +230,7 @@ def compileClass():
         compileSubroutineDec(peek(tokens)[1])
         
     # expect closing '}'
+    token = advance(tokens)
     if not (token and token[1] == "}"):
         print("Syntax error: expected '}'")
         return
@@ -295,18 +297,10 @@ def compileSubroutineDec(keyword):
         define("this", current_class_name, "arg")
 
 
-    advance(tokens)
-    
-    advance(tokens)
-
-    token = advance(tokens)
-
-    
-    if token and token[0] == "identifier":
-        current_subroutine_name = token[1]
-    else:
-        print("Syntax error: expected subroutine name")
-        return
+    advance(tokens)  # keyword
+    advance(tokens)  # return type (keyword or identifier, doesn't matter)
+    token = advance(tokens)  # subroutine name — always an identifier
+    current_subroutine_name = token[1]
     
     compileParameterList()
     compileSubroutineBody()
@@ -329,8 +323,8 @@ def compileParameterList():
         token = advance(tokens)
         param_type = token[1]
 
-        
         # expect a varName
+        token = advance(tokens)
         if token and token[0] == "identifier":
             define(token[1], param_type, "arg")
         else:
@@ -342,7 +336,6 @@ def compileParameterList():
             advance(tokens)  # consume ','
             
             token = advance(tokens)
-
             param_type = token[1]
 
             token = advance(tokens)
@@ -396,10 +389,11 @@ def compileSubroutineBody():
 def compileVarDec():
     global message
 
+    advance(tokens)  # consume 'var'
+
     token = advance(tokens)
     var_type = token[1] 
 
-    
     token = advance(tokens)
 
     if token and token[0] == "identifier":
@@ -458,27 +452,33 @@ def compileLet():
     token = advance(tokens)
     var_name = token[1]
     
+    isArray = False
 
-    while peek(tokens) and peek(tokens)[1] == "[":
+    if peek(tokens) and peek(tokens)[1] == "[":
+        isArray = True
         advance(tokens) 
-        printSymbolTag("[")
+        writePushVar(var_name)  # push the base address of the array onto the stack
         compileExpression()
-        if advance(tokens)[1] == "]":
-            printSymbolTag("]")
-        else:
+        writeArithmetic("+")
+        if not (advance(tokens)[1] == "]"):
             print("Syntax error: expected ']'")
             return
         
-    if advance(tokens)[1] == "=":
-        printSymbolTag("=")
-        compileExpression()
-    else:
+    if not (advance(tokens)[1] == "="):
         print("Syntax error: expected '='")
         return
     
-    if advance(tokens)[1] == ";":
-        printSymbolTag(";")
+    compileExpression()
+
+    if isArray:
+        writePop("temp", 0)  # pop the value to be assigned into temp 0
+        writePop("pointer", 1)  # pop the address of the array element into pointer 1 (that is, 'that')
+        writePush("temp", 0)  # push the value to be assigned back onto the stack
+        writePop("that", 0)  # pop the value to be assigned into the array element
     else:
+        writePopVar(var_name)  # pop the value to be assigned into the variable 
+    
+    if not (advance(tokens)[1] == ";"):
         print("Syntax error: expected ';'")
         return
     
@@ -488,97 +488,97 @@ def compileLet():
 def compileIf():
     global message
 
-
-    if advance(tokens)[1] == "if":
-        printKeyword("if")
-    else:
+    if not (advance(tokens)[1] == "if"):
         print("Syntax error: expected 'if'")
         return
 
-    if advance(tokens)[1] == "(":
-        printSymbolTag("(")
-        compileExpression()
-        if advance(tokens)[1] == ")":
-            printSymbolTag(")")
-        else:
-            print("Syntax error: expected ')'")
-            return
-    else:
+    if not (advance(tokens)[1] == "("):
         print("Syntax error: expected '('")
         return
-    
-    if advance(tokens)[1] == "{":
-        printSymbolTag("{")
-        compileStatements()
-        if advance(tokens)[1] == "}":
-            printSymbolTag("}")
-        else:
-            print("Syntax error: expected '}'")
-            return
-    else:
+
+    compileExpression()
+
+    if not (advance(tokens)[1] == ")"):
+        print("Syntax error: expected ')'")
+        return
+
+    labelFalse = createLabel("IF_FALSE")
+    labelEnd = createLabel("IF_END")
+
+    writeUnarayArithmetic("~")
+    writeIfGoto(labelFalse)
+
+    if not (advance(tokens)[1] == "{"):
         print("Syntax error: expected '{'")
         return
-    
-    
-    while peek(tokens) and peek(tokens)[1] == "else":
-        advance(tokens)
-        printKeyword("else")
 
-        if advance(tokens)[1] == "{":
-            printSymbolTag("{")
-            compileStatements()
-        else:
+    compileStatements()
+
+    if not (advance(tokens)[1] == "}"):
+        print("Syntax error: expected '}'")
+        return
+
+    writeGoto(labelEnd)
+    writeLabel(labelFalse)
+
+    if peek(tokens) and peek(tokens)[1] == "else":
+        advance(tokens)
+
+        if not (advance(tokens)[1] == "{"):
             print("Syntax error: expected '{'")
             return
-    
-        if advance(tokens)[1] == "}":
-            printSymbolTag("}")
-        else:
+
+        compileStatements()
+
+        if not (advance(tokens)[1] == "}"):
             print("Syntax error: expected '}'")
             return
-    
+
+    writeLabel(labelEnd)
         
 
 #compile a while statement 
 def compileWhile():
-    global message
 
-    if advance(tokens)[1] == "while":
-        printKeyword("while")
-    else:
+    if not (advance(tokens)[1] == "while"):
         print("Syntax error: expected 'while'")
         return
     
-    if advance(tokens)[1] == "(":
-        printSymbolTag("(")
-    else:
+    if not (advance(tokens)[1] == "("):
         print("Syntax error: expected '('")
         return
     
+    whileStartLabel = createLabel("WHILE_EXP")
+    whileEndLabel = createLabel("WHILE_END")
+    writeLabel(whileStartLabel)
+
+    
     #check to see if there is an expression after the '(' symbol, and if there is, compile the expression
     compileExpression()
+    
 
-    if advance(tokens)[1] == ")":
-        printSymbolTag(")")
-    else:
+
+    if not (advance(tokens)[1] == ")"):
         print("Syntax error: expected ')'")
         return
 
-    if advance(tokens)[1] == "{":
-        printSymbolTag("{")
-    else:
+    if not (advance(tokens)[1] == "{"):
         print("Syntax error: expected '{'")
         return
+    
+    writeUnarayArithmetic("~")
+    writeIfGoto(whileEndLabel)
     
     #check to see if it this an empty while loop or if there are statements to compile, and if there are statements, compile the statements
     compileStatements()
 
-    if advance(tokens)[1] == "}":
-        printSymbolTag("}")
-    else:
+    if not (advance(tokens)[1] == "}"):
         print("Syntax error: expected '}'")
         return
     
+    writeGoto(whileStartLabel)
+    writeLabel(whileEndLabel)
+
     
     return
 
@@ -587,9 +587,7 @@ def compileWhile():
 def compileDo():
     global message
 
-    if advance(tokens)[1] == "do":
-        printKeyword("do")
-    else:
+    if not (advance(tokens)[1] == "do"):
         print("Syntax error: expected 'do'")
         return
 
@@ -601,100 +599,99 @@ def compileDo():
         print("Syntax error: expected subroutine name")
         return
     
-    if advance(tokens)[1] == ";":
-        printSymbolTag(";")
-    else:
+    if not (advance(tokens)[1] == ";"):
         print("Syntax error: expected ';'")
         return
+    
+    writePop("temp", 0) 
     
     return
 
 #compile a return statement, which can be either 'return;' or 'return expression;'
 def compileReturn():
-    global message
 
-    if advance(tokens)[1] == "return":
-        printKeyword("return")
-    else:
+    if not (advance(tokens)[1] == "return"):
         print("Syntax error: expected 'return'")
         return
     
     if peek(tokens) and peek(tokens)[1] != ";":
         compileExpression()
+    else:
+        writePushConstant(0)
     
     token = advance(tokens)
 
-    if token and token[1] == ";":
-        printSymbolTag(";")
-    else:
+    if not (token and token[1] == ";"):
         print("Syntax error: expected ';'")
         return
 
+    writeReturn()
 
 def compileExpression():
-    global message
-    message += "<expression>\n"
-
-    message += "<term>\n"
+    
+    
     compileTerm()  
-    message += "</term>\n"
 
     # handle (op term)*
     while peek(tokens) and peek(tokens)[1] in operators:
-        printSymbolTag(advance(tokens)[1])  # print the op
-        message += "<term>\n"
+        operator = advance(tokens)[1]  # print the op
         compileTerm()
-        message += "</term>\n"
+        writeArithmetic(operator)
 
-    message += "</expression>\n"
 
 #compile a term, which can be an integer constant, string constant, keyword constant, varName, varName[expression], subroutineCall, (expression), or unaryOp term
 def compileTerm():
-    global message
     term = checkTerm()
 
+    token = peek(tokens)
+
     if term != None:
-        if term == "IntegerConstant" or term == "StringConstant":
-            printConstant(advance(tokens))
+        if term == "IntegerConstant":
+            token = advance(tokens)
+            writePushConstant(token[1])  # push the constant value onto the stack
+        elif term == "StringConstant":
+            token = advance(tokens)  # consume the string constant token
+            writePushConstant(len(token[1]))
+            writeCall("String.new", 1)
+            for char in token[1]:
+                writePushConstant(ord(char))
+                writeCall("String.appendChar", 2)
         elif term == "keywordConstant":
-            printKeywordConstant(advance(tokens))
+            token = advance(tokens)
+            writeKeywordConstant(token[1])
         elif term == "identifier":
-            varName = advance(tokens) #consume the identifier token
+            token = advance(tokens)   # consume identifier
+            varName = token[1]
+            
             if peek(tokens) and peek(tokens)[1] == "[":
-                printIdentifier(varName[1])
+                advance(tokens)  # consume '['
 
-                #should i comment out or not 
-                advance(tokens) #consume the identifier token
-
-                printSymbolTag("[")
+                writePushVar(varName)
                 compileExpression()
-                if advance(tokens)[1] == "]":
-                    printSymbolTag("]")
-                else:
-                    print("Syntax error: expected ']'")
-                    return
-                
+                writeArithmetic("+")   # better than message += "add"
+
+                advance(tokens)  # consume ']'
+
+                writePop("pointer", 1)
+                writePush("that", 0)
 
             elif peek(tokens) and peek(tokens)[1] in ["(", "."]:
-                compileSubroutineCall(varName)
-
+                compileSubroutineCall(token)
 
             else:    
-                printIdentifier(varName[1])
+                writePushVar(varName)  # push the value of the variable onto the stack
 
         elif term == "unaryOp":
-                printSymbolTag(advance(tokens)[1])  # consume the unary op
-                message += "<term>\n"
-                compileTerm()
-                message += "</term>\n"
+            op = advance(tokens)
+            compileTerm()
+            writeUnarayArithmetic(op[1])  # apply the unary operator to the term
 
         elif term == "other symbol":
-            printSymbolTag(advance(tokens)[1]) #consume the symbol "("
+            advance(tokens)[1] #consume the symbol "("
             compileExpression()
             token = advance(tokens)
-            if token and token[0] == "symbol" and token[1]== ")":
-                printSymbolTag(")")
-            else:
+
+            if not (token and token[0] == "symbol" and token[1]== ")"):
                 print("Syntax error: expected ')'")
                 return
 
@@ -706,63 +703,55 @@ def compileTerm():
 
 #compile the subroutine call, which can be either subroutineName(expressionList) or (className|varName).subroutineName(expressionList)
 
-def compileSubroutineCall(varName):
+def compileSubroutineCall(varname):
     global message
-    printIdentifier(varName[1])
+    varn = varname[1]
 
     if peek(tokens) and peek(tokens)[1] == "(":
         advance(tokens)  # consume '('
-        printSymbolTag("(")
-        compileExpressionList()
-        token = advance(tokens)
-        if token and token[1] == ")":
-            printSymbolTag(")")
-        else:
-            print("Syntax error: expected ')'")
-            return
+        writePush("pointer", 0)  # push 'this' for method calls
+        args = compileExpressionList()
+        advance(tokens)  # consume ')'
+        writeCall(current_class_name + "." + varn, args + 1)  # method call on current class
 
     elif peek(tokens) and peek(tokens)[1] == ".":
         advance(tokens)  # consume '.'
-        printSymbolTag(".")
-        token = advance(tokens)
-        if token and token[0] == "identifier":
-            printIdentifier(token[1])
-        else:
-            print("Syntax error: expected subroutine name after '.'")
-            return
         
         token = advance(tokens)
-        if token and token[1] == "(":
-            printSymbolTag("(")
-            compileExpressionList()
-            token = advance(tokens)
-            if token and token[1] == ")":
-                printSymbolTag(")")
-            else:
-                print("Syntax error: expected ')'")
-                return
+        name = token[1]
+
+        advance(tokens)  # consume '('
+        
+        type = typeOf(varn)
+
+        if type is not None:
+            writePushVar(varn)  # push the object for method call
+            args = compileExpressionList()
+            advance(tokens)  # consume ')'
+            writeCall(type + "." + name, args + 1)  # method call on the object's class
         else:
-            print("Syntax error: expected '('")
-            return
+            #its a static method call, so we do not push the object and we do not add 1 to the number of arguments, and we call the method on the current class
+            args = compileExpressionList()
+            advance(tokens)  # consume ')'
+            writeCall(varn + "." + name, args)  # static method call
     else:
         print("Syntax error: expected '(' or '.'")
         return
          
 #keep compiling expressions until we find a ')' symbol, but do not consume the ')' symbol
 def compileExpressionList():
-    global message
-    message += "<expressionList>\n"
+    nArgs = 0
     
     if peek(tokens) and peek(tokens)[1] != ")":
         compileExpression()
-
+        nArgs += 1
         while peek(tokens) and peek(tokens)[1] == ",":
             advance(tokens) #consume the ','
-            printSymbolTag(",")
             compileExpression()
+            nArgs += 1
 
-    message += "</expressionList>\n"
-    return
+    return nArgs
+
 
 #check what type of term by peeking and return the type as a string, but do not consume the token
 def checkTerm():
@@ -794,19 +783,6 @@ def checkTerm():
 
 
 #-----------------symbol table-------------------#
-
-class_symbol_table = {"static": {}, "field": {}}
-subroutine_symbol_table = {"arg": {}, "var": {}}
-current_class_name = ""
-current_subroutine_type = ""  # 'function', 'constructor', or 'method'
-
-def resetClassTable():
-    global class_symbol_table
-    class_symbol_table = {"static": {}, "field": {}}
-
-def resetSubroutineTable():
-    global subroutine_symbol_table
-    subroutine_symbol_table = {"arg": {}, "var": {}}
 
 def define(name, type, kind):
     if kind in ("static", "field"):
@@ -960,7 +936,7 @@ def processFile(path):
         
         writeToFile(path)
 
-        print("Output written to " + path.split(".")[0] + ".xml")
+        print("Output written to " + path.split(".")[0] + ".vm")
 
 
 def writeToFile(path):
@@ -969,7 +945,7 @@ def writeToFile(path):
     #code credit to stack overflow for this part: https://stackoverflow.com/questions/541390/extracting-extension-from-filename-in-python
     folder = os.path.dirname(path)
     base_name = os.path.basename(path).split(".")[0]
-    output_path = os.path.join(folder, base_name + ".xml")    
+    output_path = os.path.join(folder, base_name + ".vm")    
 
     with open(output_path, "w") as outfile:
         outfile.write(message)
