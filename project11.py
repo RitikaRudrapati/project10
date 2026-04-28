@@ -904,6 +904,7 @@ def readFiles(path):
 
 #code taken from my project 7&8  
 def main():
+    
     if len(sys.argv) > 1:
         path = sys.argv[1]
     else:
@@ -912,6 +913,7 @@ def main():
     if os.path.isdir(path):
         # get all .jack files in the directory
         jackFiles = [f for f in os.listdir(path) if f.endswith(".jack")]
+        print("Found files:", jackFiles)
         for jackFile in jackFiles:  
             fullPath = os.path.join(path, jackFile)
             processFile(fullPath)
